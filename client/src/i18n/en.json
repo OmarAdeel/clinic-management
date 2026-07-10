@@ -48,10 +48,14 @@
     "heroSubtitle": "Patients, appointments, prescriptions and billing — beautifully organized in English and Arabic."
   },
   "nav": {
+    "main": "Main navigation",
+    "openMenu": "Open menu",
     "dashboard": "Dashboard",
     "patients": "Patients",
     "appointments": "Appointments",
     "doctors": "Doctors & Staff",
+    "visits": "Visits",
+    "portal": "My Portal",
     "billing": "Billing",
     "reports": "Reports",
     "myAppointments": "My Appointments",
@@ -240,5 +244,9 @@
     "en": "English",
     "ar": "العربية",
     "switch": "Switch language"
+  },
+  "theme": {
+    "light": "Switch to light mode",
+    "dark": "Switch to dark mode"
   }
 }
