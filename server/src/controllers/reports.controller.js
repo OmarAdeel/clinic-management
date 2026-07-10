@@ -34,8 +34,10 @@ export async function appointmentsPerDay(req, res, next) {
        GROUP BY date ORDER BY date`,
       [days]
     );
+    console.log('[Reports API] appointmentsPerDay result count:', rows.length);
     res.json({ data: rows });
   } catch (err) {
+    console.error('[Reports API] appointmentsPerDay error:', err);
     next(err);
   }
 }
@@ -48,8 +50,10 @@ export async function revenuePerMonth(req, res, next) {
        FROM payments WHERE EXTRACT(YEAR FROM paid_at) = EXTRACT(YEAR FROM CURRENT_DATE)
        GROUP BY EXTRACT(MONTH FROM paid_at) ORDER BY month`
     );
-    res.json({ data: rows.map((r) => ({ month: r.month, total: Number(r.total) })) });
+    console.log('[Reports API] revenuePerMonth result:', rows);
+    res.json({ data: rows.map((r) => ({ month: Number(r.month), total: Number(r.total) })) });
   } catch (err) {
+    console.error('[Reports API] revenuePerMonth error:', err);
     next(err);
   }
 }
@@ -60,8 +64,10 @@ export async function statusBreakdown(req, res, next) {
     const rows = await query(
       'SELECT status, COUNT(*) AS count FROM appointments GROUP BY status'
     );
+    console.log('[Reports API] statusBreakdown result:', rows);
     res.json({ data: rows });
   } catch (err) {
+    console.error('[Reports API] statusBreakdown error:', err);
     next(err);
   }
 }
@@ -81,10 +87,12 @@ export async function topDoctors(req, res, next) {
        GROUP BY d.id
        ORDER BY completed_appointments DESC`
     );
+    console.log('[Reports API] topDoctors result count:', rows.length);
     res.json({
-      data: rows.map((r) => ({ ...r, revenue: Number(r.revenue) })),
+      data: rows.map((r) => ({ ...r, revenue: Number(r.revenue), completed_appointments: Number(r.completed_appointments) })),
     });
   } catch (err) {
+    console.error('[Reports API] topDoctors error:', err);
     next(err);
   }
 }
