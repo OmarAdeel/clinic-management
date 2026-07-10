@@ -33,6 +33,12 @@ app.use('/api/portal', portalRoutes);
 app.use(notFound);
 app.use(errorHandler);
 
-app.listen(env.port, () => {
-  console.log(`Clinic API running on http://localhost:${env.port}`);
-});
+// Only start a listening server when run directly (local dev).
+// On Vercel the app is imported and invoked as a serverless handler.
+if (!process.env.VERCEL) {
+  app.listen(env.port, () => {
+    console.log(`Clinic API running on http://localhost:${env.port}`);
+  });
+}
+
+export default app;
