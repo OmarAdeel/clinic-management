@@ -2,38 +2,38 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Use ES6 getters to dynamically resolve environment variables from process.env on demand.
-// This is critical for Cloudflare Workers, where process.env is populated dynamically right before the request handler runs.
+// Resolve variables dynamically from globalThis (Cloudflare Workers global bindings)
+// or fallback to process.env (Node.js/local dotenv).
 export const env = {
   get port() {
-    return Number(process.env.PORT || 5000);
+    return Number(globalThis.PORT || process.env.PORT || 5000);
   },
   get clientOrigin() {
-    return process.env.CLIENT_ORIGIN || 'http://localhost:5173';
+    return globalThis.CLIENT_ORIGIN || process.env.CLIENT_ORIGIN || 'http://localhost:5173';
   },
   get db() {
     return {
       get host() {
-        return process.env.DB_HOST || 'localhost';
+        return globalThis.DB_HOST || process.env.DB_HOST || 'localhost';
       },
       get port() {
-        return Number(process.env.DB_PORT || 5432);
+        return Number(globalThis.DB_PORT || process.env.DB_PORT || 5432);
       },
       get user() {
-        return process.env.DB_USER || 'root';
+        return globalThis.DB_USER || process.env.DB_USER || 'root';
       },
       get password() {
-        return process.env.DB_PASSWORD || '';
+        return globalThis.DB_PASSWORD || process.env.DB_PASSWORD || '';
       },
       get database() {
-        return process.env.DB_NAME || 'clinic_db';
+        return globalThis.DB_NAME || process.env.DB_NAME || 'clinic_db';
       }
     };
   },
   get jwtSecret() {
-    return process.env.JWT_SECRET || 'dev_secret_change_me';
+    return globalThis.JWT_SECRET || process.env.JWT_SECRET || 'dev_secret_change_me';
   },
   get jwtExpiresIn() {
-    return process.env.JWT_EXPIRES_IN || '12h';
+    return globalThis.JWT_EXPIRES_IN || process.env.JWT_EXPIRES_IN || '12h';
   }
 };
