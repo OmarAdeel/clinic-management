@@ -20,29 +20,6 @@ app.use(express.json());
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
-app.get('/api/debug', async (req, res) => {
-  const info = {
-    dbHost: env.db.host,
-    dbPort: env.db.port,
-    dbUser: env.db.user,
-    dbName: env.db.database,
-    hasPassword: !!env.db.password,
-    jwtSecret: env.jwtSecret ? env.jwtSecret.substring(0, 6) + '...' : 'MISSING',
-    processEnvKeys: Object.keys(process.env).filter(k => k.startsWith('DB_') || k.startsWith('JWT_') || k === 'CLIENT_ORIGIN'),
-    globalThisKeys: ['DB_HOST','DB_PASSWORD','JWT_SECRET','CLIENT_ORIGIN'].filter(k => !!globalThis[k]),
-  };
-  try {
-    const rows = await query('SELECT id, full_name, dob, gender, phone, email, blood_type, created_at FROM patients ORDER BY created_at DESC LIMIT 10 OFFSET 0');
-    info.dbConnected = true;
-    info.dbResult = rows;
-  } catch (err) {
-    info.dbConnected = false;
-    info.dbError = err.message;
-    info.dbStack = err.stack;
-  }
-  res.json(info);
-});
-
 app.use('/api/auth', authRoutes);
 app.use('/api/patients', patientsRoutes);
 app.use('/api/doctors', doctorsRoutes);
