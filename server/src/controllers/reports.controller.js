@@ -84,7 +84,7 @@ export async function topDoctors(req, res, next) {
        LEFT JOIN appointments a ON a.doctor_id = d.id AND a.status = 'completed'
        LEFT JOIN invoices i ON i.appointment_id = a.id
        LEFT JOIN payments pay ON pay.invoice_id = i.id
-       GROUP BY d.id
+       GROUP BY d.id, du.name, d.specialty, d.color
        ORDER BY completed_appointments DESC`
     );
     console.log('[Reports API] topDoctors result count:', rows.length);
