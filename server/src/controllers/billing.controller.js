@@ -23,7 +23,7 @@ export async function listInvoices(req, res, next) {
          JOIN patients p ON p.id = i.patient_id
          LEFT JOIN payments pay ON pay.invoice_id = i.id
          ${where}
-         GROUP BY i.id
+         GROUP BY i.id, i.invoice_number, i.total, i.status, i.created_at, p.id, p.full_name
          ORDER BY i.created_at DESC
          LIMIT ${limit} OFFSET ${offset}`,
         params
