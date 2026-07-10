@@ -35,7 +35,7 @@ export async function appointmentsPerDay(req, res, next) {
       [days]
     );
     console.log('[Reports API] appointmentsPerDay result count:', rows.length);
-    res.json({ data: rows });
+    res.json({ data: rows.map((r) => ({ ...r, count: Number(r.count) })) });
   } catch (err) {
     console.error('[Reports API] appointmentsPerDay error:', err);
     next(err);
@@ -65,7 +65,7 @@ export async function statusBreakdown(req, res, next) {
       'SELECT status, COUNT(*) AS count FROM appointments GROUP BY status'
     );
     console.log('[Reports API] statusBreakdown result:', rows);
-    res.json({ data: rows });
+    res.json({ data: rows.map((r) => ({ ...r, count: Number(r.count) })) });
   } catch (err) {
     console.error('[Reports API] statusBreakdown error:', err);
     next(err);
