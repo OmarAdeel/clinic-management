@@ -1,0 +1,19 @@
+{
+  "name": "clinic-management",
+  "version": "1.0.0",
+  "description": "Full-stack clinic management system - React + Express + PostgreSQL",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "cd client && npm install && npm run build",
+    "start": "node server/src/index.js",
+    "setup-db": "node server/database/migrate.js --schema && node server/database/migrate.js --seed"
+  },
+  "keywords": ["clinic", "management", "healthcare"],
+  "author": "Omar Adeel",
+  "license": "MIT",
+  "engines": {
+    "node": "18.x"
+  }
+}
