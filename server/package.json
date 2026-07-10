@@ -6,7 +6,8 @@
   "main": "src/index.js",
   "scripts": {
     "dev": "node --watch src/index.js",
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "postinstall": "node patch-iconv.js"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
