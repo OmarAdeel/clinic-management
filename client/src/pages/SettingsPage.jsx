@@ -384,7 +384,7 @@ export default function SettingsPage() {
       <AnimatePresence>
         {showModal && (
           <Modal
-            isOpen={showModal}
+            open={showModal}
             onClose={() => setShowModal(false)}
             title={selectedUser ? t('settings.editUser') : t('settings.addUser')}
           >
