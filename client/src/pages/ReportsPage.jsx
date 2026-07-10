@@ -70,7 +70,7 @@ export default function ReportsPage() {
         );
         setStatuses(
           st.data.data.map((s) => ({
-            name: t(`appointments.status.${s.status}`),
+            name: t(`appointments.statuses.${s.status}`),
             value: s.count,
             color: STATUS_COLORS[s.status] || 'var(--color-muted-foreground)',
           }))
