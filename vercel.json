@@ -2,16 +2,6 @@
   "buildCommand": "cd client && npm install && npm run build",
   "outputDirectory": "client/dist",
   "framework": "vite",
-  "env": [
-    "DB_HOST",
-    "DB_PORT",
-    "DB_USER",
-    "DB_PASSWORD",
-    "DB_NAME",
-    "JWT_SECRET",
-    "JWT_EXPIRES_IN",
-    "CLIENT_ORIGIN"
-  ],
   "routes": [
     {
       "src": "/api/(.*)",
