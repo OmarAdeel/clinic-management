@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
 import { env } from './config/env.js';
+import { query } from './config/db.js';
 import { notFound, errorHandler } from './middleware/errors.js';
 
 import authRoutes from './routes/auth.routes.js';
@@ -20,6 +21,26 @@ app.use(express.json());
 app.use(morgan('dev'));
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
+
+// Debug endpoint - check database connection
+app.get('/api/debug', async (req, res) => {
+  try {
+    const result = await query('SELECT COUNT(*) as cnt FROM users');
+    res.json({
+      status: 'connected',
+      users_count: result[0].cnt,
+      db_host: env.db.host,
+      db_user: env.db.user,
+    });
+  } catch (err) {
+    res.status(500).json({
+      status: 'error',
+      error: err.message,
+      db_host: env.db.host,
+      db_user: env.db.user,
+    });
+  }
+});
 
 app.use('/api/auth', authRoutes);
 app.use('/api/patients', patientsRoutes);
