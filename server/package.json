@@ -1,7 +1,7 @@
 {
   "name": "clinic-server",
   "version": "1.0.0",
-  "description": "Clinic Management System - Express + MySQL backend",
+  "description": "Clinic Management System - Express + PostgreSQL backend",
   "type": "module",
   "main": "src/index.js",
   "scripts": {
@@ -16,6 +16,6 @@
     "express-validator": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
-    "mysql2": "^3.10.0"
+    "pg": "^8.22.0"
   }
 }

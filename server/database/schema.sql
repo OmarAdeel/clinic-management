@@ -1,186 +1,154 @@
--- Clinic Management System - MySQL Schema
--- Run: mysql -u root -p clinic_db < schema.sql
+-- Clinic Management System - PostgreSQL Schema (Supabase)
+-- Run once: psql "connection-string" -f schema.sql
 
-SET NAMES utf8mb4;
-SET FOREIGN_KEY_CHECKS = 0;
+-- Drop tables in reverse dependency order
+DROP TABLE IF EXISTS payments         CASCADE;
+DROP TABLE IF EXISTS invoice_items    CASCADE;
+DROP TABLE IF EXISTS invoices         CASCADE;
+DROP TABLE IF EXISTS prescriptions    CASCADE;
+DROP TABLE IF EXISTS visits           CASCADE;
+DROP TABLE IF EXISTS appointments     CASCADE;
+DROP TABLE IF EXISTS doctor_schedules CASCADE;
+DROP TABLE IF EXISTS doctors          CASCADE;
+DROP TABLE IF EXISTS patients         CASCADE;
+DROP TABLE IF EXISTS users            CASCADE;
 
-DROP TABLE IF EXISTS payments;
-DROP TABLE IF EXISTS invoice_items;
-DROP TABLE IF EXISTS invoices;
-DROP TABLE IF EXISTS prescriptions;
-DROP TABLE IF EXISTS visits;
-DROP TABLE IF EXISTS appointments;
-DROP TABLE IF EXISTS doctor_schedules;
-DROP TABLE IF EXISTS doctors;
-DROP TABLE IF EXISTS patients;
-DROP TABLE IF EXISTS users;
+-- Note: Using VARCHAR constraints instead of custom ENUMs for pooler compatibility.
+-- Valid values are enforced at the application layer.
 
-SET FOREIGN_KEY_CHECKS = 1;
-
--- ---------------------------------------------------------------------------
--- users: all people who can log in (admin, doctor, receptionist, patient)
--- ---------------------------------------------------------------------------
-CREATE TABLE users (
-  id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+-- users
+CREATE TABLE IF NOT EXISTS users (
+  id            SERIAL PRIMARY KEY,
   name          VARCHAR(150) NOT NULL,
   email         VARCHAR(190) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
-  role          ENUM('admin', 'doctor', 'receptionist', 'patient') NOT NULL DEFAULT 'receptionist',
-  phone         VARCHAR(30)  NULL,
-  avatar        VARCHAR(255) NULL,
-  is_active     TINYINT(1)   NOT NULL DEFAULT 1,
-  created_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  role          VARCHAR(20)  NOT NULL DEFAULT 'receptionist'
+                  CHECK (role IN ('admin','doctor','receptionist','patient')),
+  phone         VARCHAR(30),
+  avatar        VARCHAR(255),
+  is_active     BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
--- ---------------------------------------------------------------------------
--- doctors: extended profile for users with role 'doctor'
--- ---------------------------------------------------------------------------
-CREATE TABLE doctors (
-  id               INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  user_id          INT UNSIGNED NOT NULL UNIQUE,
+-- doctors
+CREATE TABLE IF NOT EXISTS doctors (
+  id               SERIAL PRIMARY KEY,
+  user_id          INT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
   specialty        VARCHAR(120) NOT NULL,
-  bio              TEXT         NULL,
-  consultation_fee DECIMAL(10,2) NOT NULL DEFAULT 0,
-  color            VARCHAR(9)   NOT NULL DEFAULT '#0d9488',
-  created_at       TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at       TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  CONSTRAINT fk_doctors_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  bio              TEXT,
+  consultation_fee NUMERIC(10,2) NOT NULL DEFAULT 0,
+  color            VARCHAR(9)    NOT NULL DEFAULT '#0d9488',
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
--- ---------------------------------------------------------------------------
--- doctor_schedules: weekly recurring availability
--- day_of_week: 0 = Sunday ... 6 = Saturday
--- ---------------------------------------------------------------------------
-CREATE TABLE doctor_schedules (
-  id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  doctor_id    INT UNSIGNED NOT NULL,
-  day_of_week  TINYINT UNSIGNED NOT NULL,
+-- doctor_schedules (0=Sun … 6=Sat)
+CREATE TABLE IF NOT EXISTS doctor_schedules (
+  id           SERIAL PRIMARY KEY,
+  doctor_id    INT NOT NULL REFERENCES doctors(id) ON DELETE CASCADE,
+  day_of_week  SMALLINT NOT NULL CHECK (day_of_week BETWEEN 0 AND 6),
   start_time   TIME NOT NULL,
   end_time     TIME NOT NULL,
-  slot_minutes SMALLINT UNSIGNED NOT NULL DEFAULT 30,
-  CONSTRAINT fk_schedules_doctor FOREIGN KEY (doctor_id) REFERENCES doctors(id) ON DELETE CASCADE,
-  UNIQUE KEY uq_doctor_day (doctor_id, day_of_week, start_time)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  slot_minutes SMALLINT NOT NULL DEFAULT 30,
+  UNIQUE (doctor_id, day_of_week, start_time)
+);
 
--- ---------------------------------------------------------------------------
--- patients: clinic patients (user_id nullable - portal login is optional)
--- ---------------------------------------------------------------------------
-CREATE TABLE patients (
-  id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  user_id       INT UNSIGNED NULL UNIQUE,
+-- patients
+CREATE TABLE IF NOT EXISTS patients (
+  id            SERIAL PRIMARY KEY,
+  user_id       INT UNIQUE REFERENCES users(id) ON DELETE SET NULL,
   full_name     VARCHAR(150) NOT NULL,
-  dob           DATE         NULL,
-  gender        ENUM('male', 'female') NULL,
-  phone         VARCHAR(30)  NULL,
-  email         VARCHAR(190) NULL,
-  address       VARCHAR(255) NULL,
-  blood_type    VARCHAR(5)   NULL,
-  allergies     TEXT         NULL,
-  medical_notes TEXT         NULL,
-  created_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  CONSTRAINT fk_patients_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
-  INDEX idx_patients_name (full_name),
-  INDEX idx_patients_phone (phone)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  dob           DATE,
+  gender        VARCHAR(10)  CHECK (gender IN ('male','female')),
+  phone         VARCHAR(30),
+  email         VARCHAR(190),
+  address       VARCHAR(255),
+  blood_type    VARCHAR(5),
+  allergies     TEXT,
+  medical_notes TEXT,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_patients_name  ON patients (full_name);
+CREATE INDEX IF NOT EXISTS idx_patients_phone ON patients (phone);
 
--- ---------------------------------------------------------------------------
 -- appointments
--- ---------------------------------------------------------------------------
-CREATE TABLE appointments (
-  id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  patient_id INT UNSIGNED NOT NULL,
-  doctor_id  INT UNSIGNED NOT NULL,
+CREATE TABLE IF NOT EXISTS appointments (
+  id         SERIAL PRIMARY KEY,
+  patient_id INT NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+  doctor_id  INT NOT NULL REFERENCES doctors(id)  ON DELETE CASCADE,
   date       DATE NOT NULL,
   start_time TIME NOT NULL,
   end_time   TIME NOT NULL,
-  status     ENUM('scheduled', 'confirmed', 'completed', 'cancelled', 'no_show') NOT NULL DEFAULT 'scheduled',
-  reason     VARCHAR(255) NULL,
-  created_by INT UNSIGNED NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  CONSTRAINT fk_appt_patient FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE,
-  CONSTRAINT fk_appt_doctor  FOREIGN KEY (doctor_id)  REFERENCES doctors(id)  ON DELETE CASCADE,
-  CONSTRAINT fk_appt_creator FOREIGN KEY (created_by) REFERENCES users(id)    ON DELETE SET NULL,
-  INDEX idx_appt_date (date),
-  INDEX idx_appt_doctor_date (doctor_id, date)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  status     VARCHAR(20) NOT NULL DEFAULT 'scheduled'
+               CHECK (status IN ('scheduled','confirmed','completed','cancelled','no_show')),
+  reason     VARCHAR(255),
+  created_by INT REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_appt_date        ON appointments (date);
+CREATE INDEX IF NOT EXISTS idx_appt_doctor_date ON appointments (doctor_id, date);
 
--- ---------------------------------------------------------------------------
--- visits: clinical record created when an appointment is completed
--- vitals JSON example: {"bp": "120/80", "temp": 36.8, "weight": 70, "height": 175}
--- ---------------------------------------------------------------------------
-CREATE TABLE visits (
-  id             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  appointment_id INT UNSIGNED NOT NULL UNIQUE,
-  diagnosis      TEXT NULL,
-  symptoms       TEXT NULL,
-  notes          TEXT NULL,
-  vitals         JSON NULL,
-  created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  CONSTRAINT fk_visits_appt FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- visits
+CREATE TABLE IF NOT EXISTS visits (
+  id             SERIAL PRIMARY KEY,
+  appointment_id INT NOT NULL UNIQUE REFERENCES appointments(id) ON DELETE CASCADE,
+  diagnosis      TEXT,
+  symptoms       TEXT,
+  notes          TEXT,
+  vitals         JSONB,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
--- ---------------------------------------------------------------------------
--- prescriptions: medication lines attached to a visit
--- ---------------------------------------------------------------------------
-CREATE TABLE prescriptions (
-  id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  visit_id     INT UNSIGNED NOT NULL,
+-- prescriptions
+CREATE TABLE IF NOT EXISTS prescriptions (
+  id           SERIAL PRIMARY KEY,
+  visit_id     INT NOT NULL REFERENCES visits(id) ON DELETE CASCADE,
   medication   VARCHAR(190) NOT NULL,
-  dosage       VARCHAR(100) NULL,
-  frequency    VARCHAR(100) NULL,
-  duration     VARCHAR(100) NULL,
-  instructions VARCHAR(255) NULL,
-  created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_rx_visit FOREIGN KEY (visit_id) REFERENCES visits(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  dosage       VARCHAR(100),
+  frequency    VARCHAR(100),
+  duration     VARCHAR(100),
+  instructions VARCHAR(255),
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
--- ---------------------------------------------------------------------------
 -- invoices
--- ---------------------------------------------------------------------------
-CREATE TABLE invoices (
-  id             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS invoices (
+  id             SERIAL PRIMARY KEY,
   invoice_number VARCHAR(30) NOT NULL UNIQUE,
-  patient_id     INT UNSIGNED NOT NULL,
-  appointment_id INT UNSIGNED NULL,
-  subtotal       DECIMAL(10,2) NOT NULL DEFAULT 0,
-  discount       DECIMAL(10,2) NOT NULL DEFAULT 0,
-  tax            DECIMAL(10,2) NOT NULL DEFAULT 0,
-  total          DECIMAL(10,2) NOT NULL DEFAULT 0,
-  status         ENUM('draft', 'unpaid', 'partial', 'paid', 'cancelled') NOT NULL DEFAULT 'unpaid',
-  created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  CONSTRAINT fk_inv_patient FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE,
-  CONSTRAINT fk_inv_appt    FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE SET NULL,
-  INDEX idx_inv_status (status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  patient_id     INT NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+  appointment_id INT REFERENCES appointments(id) ON DELETE SET NULL,
+  subtotal       NUMERIC(10,2) NOT NULL DEFAULT 0,
+  discount       NUMERIC(10,2) NOT NULL DEFAULT 0,
+  tax            NUMERIC(10,2) NOT NULL DEFAULT 0,
+  total          NUMERIC(10,2) NOT NULL DEFAULT 0,
+  status         VARCHAR(20) NOT NULL DEFAULT 'unpaid'
+                   CHECK (status IN ('draft','unpaid','partial','paid','cancelled')),
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_inv_status ON invoices (status);
 
--- ---------------------------------------------------------------------------
 -- invoice_items
--- ---------------------------------------------------------------------------
-CREATE TABLE invoice_items (
-  id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  invoice_id  INT UNSIGNED NOT NULL,
+CREATE TABLE IF NOT EXISTS invoice_items (
+  id          SERIAL PRIMARY KEY,
+  invoice_id  INT NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
   description VARCHAR(255) NOT NULL,
-  qty         SMALLINT UNSIGNED NOT NULL DEFAULT 1,
-  unit_price  DECIMAL(10,2) NOT NULL DEFAULT 0,
-  amount      DECIMAL(10,2) NOT NULL DEFAULT 0,
-  CONSTRAINT fk_item_invoice FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  qty         SMALLINT NOT NULL DEFAULT 1,
+  unit_price  NUMERIC(10,2) NOT NULL DEFAULT 0,
+  amount      NUMERIC(10,2) NOT NULL DEFAULT 0
+);
 
--- ---------------------------------------------------------------------------
 -- payments
--- ---------------------------------------------------------------------------
-CREATE TABLE payments (
-  id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  invoice_id  INT UNSIGNED NOT NULL,
-  amount      DECIMAL(10,2) NOT NULL,
-  method      ENUM('cash', 'card', 'transfer', 'insurance') NOT NULL DEFAULT 'cash',
-  paid_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  received_by INT UNSIGNED NULL,
-  CONSTRAINT fk_pay_invoice  FOREIGN KEY (invoice_id)  REFERENCES invoices(id) ON DELETE CASCADE,
-  CONSTRAINT fk_pay_receiver FOREIGN KEY (received_by) REFERENCES users(id)    ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS payments (
+  id          SERIAL PRIMARY KEY,
+  invoice_id  INT NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+  amount      NUMERIC(10,2) NOT NULL,
+  method      VARCHAR(20) NOT NULL DEFAULT 'cash'
+                CHECK (method IN ('cash','card','transfer','insurance')),
+  paid_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  received_by INT REFERENCES users(id) ON DELETE SET NULL
+);

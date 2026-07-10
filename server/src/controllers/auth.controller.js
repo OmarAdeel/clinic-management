@@ -7,7 +7,7 @@ export async function login(req, res, next) {
   try {
     const { email, password } = req.body;
     const rows = await query(
-      'SELECT id, name, email, password_hash, role, is_active FROM users WHERE email = ?',
+      'SELECT id, name, email, password_hash, role, is_active FROM users WHERE email = $1',
       [email]
     );
     const user = rows[0];
@@ -31,7 +31,7 @@ export async function login(req, res, next) {
 export async function me(req, res, next) {
   try {
     const rows = await query(
-      'SELECT id, name, email, role, phone, avatar FROM users WHERE id = ?',
+      'SELECT id, name, email, role, phone, avatar FROM users WHERE id = $1',
       [req.user.id]
     );
     if (!rows.length) return res.status(404).json({ message: 'User not found' });

@@ -1,55 +1,50 @@
-import { pool, query } from '../config/db.js';
+import { transaction, query } from '../config/db.js';
 
-/**
- * Create or update the visit record for an appointment, replacing its
- * prescription lines, and mark the appointment as completed.
- */
 export async function upsertVisit(req, res, next) {
-  const conn = await pool.getConnection();
   try {
     const { appointment_id, diagnosis, symptoms, notes, vitals, prescriptions = [] } = req.body;
 
-    const appts = await query('SELECT id FROM appointments WHERE id = ?', [appointment_id]);
+    const appts = await query('SELECT id FROM appointments WHERE id = $1', [appointment_id]);
     if (!appts.length) return res.status(404).json({ message: 'Appointment not found' });
 
-    await conn.beginTransaction();
+    const visitId = await transaction(async (q) => {
+      const existing = await q('SELECT id FROM visits WHERE appointment_id = $1', [appointment_id]);
+      let vid;
 
-    const existing = await query('SELECT id FROM visits WHERE appointment_id = ?', [appointment_id]);
-    let visitId;
-    if (existing.length) {
-      visitId = existing[0].id;
-      await conn.execute(
-        'UPDATE visits SET diagnosis = ?, symptoms = ?, notes = ?, vitals = ? WHERE id = ?',
-        [diagnosis || null, symptoms || null, notes || null, vitals ? JSON.stringify(vitals) : null, visitId]
-      );
-      await conn.execute('DELETE FROM prescriptions WHERE visit_id = ?', [visitId]);
-    } else {
-      const [result] = await conn.execute(
-        'INSERT INTO visits (appointment_id, diagnosis, symptoms, notes, vitals) VALUES (?, ?, ?, ?, ?)',
-        [appointment_id, diagnosis || null, symptoms || null, notes || null, vitals ? JSON.stringify(vitals) : null]
-      );
-      visitId = result.insertId;
-    }
+      if (existing.length) {
+        vid = existing[0].id;
+        await q(
+          'UPDATE visits SET diagnosis = $1, symptoms = $2, notes = $3, vitals = $4 WHERE id = $5',
+          [diagnosis || null, symptoms || null, notes || null,
+           vitals ? JSON.stringify(vitals) : null, vid]
+        );
+        await q('DELETE FROM prescriptions WHERE visit_id = $1', [vid]);
+      } else {
+        const rows = await q(
+          'INSERT INTO visits (appointment_id, diagnosis, symptoms, notes, vitals) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+          [appointment_id, diagnosis || null, symptoms || null, notes || null,
+           vitals ? JSON.stringify(vitals) : null]
+        );
+        vid = rows[0].id;
+      }
 
-    for (const rx of prescriptions) {
-      await conn.execute(
-        'INSERT INTO prescriptions (visit_id, medication, dosage, frequency, duration, instructions) VALUES (?, ?, ?, ?, ?, ?)',
-        [visitId, rx.medication, rx.dosage || null, rx.frequency || null, rx.duration || null, rx.instructions || null]
-      );
-    }
+      for (const rx of prescriptions) {
+        await q(
+          'INSERT INTO prescriptions (visit_id, medication, dosage, frequency, duration, instructions) VALUES ($1, $2, $3, $4, $5, $6)',
+          [vid, rx.medication, rx.dosage || null, rx.frequency || null, rx.duration || null, rx.instructions || null]
+        );
+      }
 
-    await conn.execute("UPDATE appointments SET status = 'completed' WHERE id = ?", [appointment_id]);
-    await conn.commit();
+      await q("UPDATE appointments SET status = 'completed' WHERE id = $1", [appointment_id]);
+      return vid;
+    });
+
     res.json({ visit_id: visitId, message: 'Visit saved' });
   } catch (err) {
-    await conn.rollback();
     next(err);
-  } finally {
-    conn.release();
   }
 }
 
-/** Full visit detail (for the printable prescription view). */
 export async function getVisit(req, res, next) {
   try {
     const rows = await query(
@@ -61,13 +56,13 @@ export async function getVisit(req, res, next) {
        JOIN patients p ON p.id = a.patient_id
        JOIN doctors d ON d.id = a.doctor_id
        JOIN users du ON du.id = d.user_id
-       WHERE v.id = ?`,
+       WHERE v.id = $1`,
       [req.params.id]
     );
     if (!rows.length) return res.status(404).json({ message: 'Visit not found' });
     const visit = rows[0];
     visit.prescriptions = await query(
-      'SELECT id, medication, dosage, frequency, duration, instructions FROM prescriptions WHERE visit_id = ?',
+      'SELECT id, medication, dosage, frequency, duration, instructions FROM prescriptions WHERE visit_id = $1',
       [visit.id]
     );
     res.json({ visit });

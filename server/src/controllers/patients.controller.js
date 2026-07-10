@@ -5,8 +5,10 @@ export async function listPatients(req, res, next) {
   try {
     const { page, limit, offset } = getPagination(req);
     const search = (req.query.search || '').trim();
-    const where = search ? 'WHERE full_name LIKE ? OR phone LIKE ? OR email LIKE ?' : '';
-    const params = search ? [`%${search}%`, `%${search}%`, `%${search}%`] : [];
+    const where = search
+      ? 'WHERE full_name ILIKE $1 OR phone ILIKE $1 OR email ILIKE $1'
+      : '';
+    const params = search ? [`%${search}%`] : [];
 
     const [countRows, rows] = await Promise.all([
       query(`SELECT COUNT(*) AS total FROM patients ${where}`, params),
@@ -19,7 +21,7 @@ export async function listPatients(req, res, next) {
       ),
     ]);
 
-    res.json({ data: rows, total: countRows[0].total, page, limit });
+    res.json({ data: rows, total: Number(countRows[0].total), page, limit });
   } catch (err) {
     next(err);
   }
@@ -27,7 +29,7 @@ export async function listPatients(req, res, next) {
 
 export async function getPatient(req, res, next) {
   try {
-    const rows = await query('SELECT * FROM patients WHERE id = ?', [req.params.id]);
+    const rows = await query('SELECT * FROM patients WHERE id = $1', [req.params.id]);
     if (!rows.length) return res.status(404).json({ message: 'Patient not found' });
 
     const patient = rows[0];
@@ -39,21 +41,20 @@ export async function getPatient(req, res, next) {
          JOIN appointments a ON a.id = v.appointment_id
          JOIN doctors d ON d.id = a.doctor_id
          JOIN users du ON du.id = d.user_id
-         WHERE a.patient_id = ?
+         WHERE a.patient_id = $1
          ORDER BY a.date DESC, a.start_time DESC`,
         [patient.id]
       ),
       query(
         `SELECT id, invoice_number, total, status, created_at
-         FROM invoices WHERE patient_id = ? ORDER BY created_at DESC`,
+         FROM invoices WHERE patient_id = $1 ORDER BY created_at DESC`,
         [patient.id]
       ),
     ]);
 
-    // attach prescriptions per visit
     for (const visit of visits) {
       visit.prescriptions = await query(
-        'SELECT id, medication, dosage, frequency, duration, instructions FROM prescriptions WHERE visit_id = ?',
+        'SELECT id, medication, dosage, frequency, duration, instructions FROM prescriptions WHERE visit_id = $1',
         [visit.id]
       );
     }
@@ -67,13 +68,14 @@ export async function getPatient(req, res, next) {
 export async function createPatient(req, res, next) {
   try {
     const { full_name, dob, gender, phone, email, address, blood_type, allergies, medical_notes } = req.body;
-    const result = await query(
+    const rows = await query(
       `INSERT INTO patients (full_name, dob, gender, phone, email, address, blood_type, allergies, medical_notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING id`,
       [full_name, dob || null, gender || null, phone || null, email || null,
        address || null, blood_type || null, allergies || null, medical_notes || null]
     );
-    res.status(201).json({ id: result.insertId, message: 'Patient created' });
+    res.status(201).json({ id: rows[0].id, message: 'Patient created' });
   } catch (err) {
     next(err);
   }
@@ -82,13 +84,14 @@ export async function createPatient(req, res, next) {
 export async function updatePatient(req, res, next) {
   try {
     const { full_name, dob, gender, phone, email, address, blood_type, allergies, medical_notes } = req.body;
-    const result = await query(
-      `UPDATE patients SET full_name = ?, dob = ?, gender = ?, phone = ?, email = ?,
-       address = ?, blood_type = ?, allergies = ?, medical_notes = ? WHERE id = ?`,
+    const rows = await query(
+      `UPDATE patients SET full_name = $1, dob = $2, gender = $3, phone = $4, email = $5,
+       address = $6, blood_type = $7, allergies = $8, medical_notes = $9
+       WHERE id = $10 RETURNING id`,
       [full_name, dob || null, gender || null, phone || null, email || null,
        address || null, blood_type || null, allergies || null, medical_notes || null, req.params.id]
     );
-    if (!result.affectedRows) return res.status(404).json({ message: 'Patient not found' });
+    if (!rows.length) return res.status(404).json({ message: 'Patient not found' });
     res.json({ message: 'Patient updated' });
   } catch (err) {
     next(err);
@@ -97,8 +100,8 @@ export async function updatePatient(req, res, next) {
 
 export async function deletePatient(req, res, next) {
   try {
-    const result = await query('DELETE FROM patients WHERE id = ?', [req.params.id]);
-    if (!result.affectedRows) return res.status(404).json({ message: 'Patient not found' });
+    const rows = await query('DELETE FROM patients WHERE id = $1 RETURNING id', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ message: 'Patient not found' });
     res.json({ message: 'Patient deleted' });
   } catch (err) {
     next(err);

@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import { pool, query } from '../config/db.js';
+import { transaction, query } from '../config/db.js';
 
 export async function listDoctors(req, res, next) {
   try {
@@ -23,13 +23,13 @@ export async function getDoctor(req, res, next) {
               u.id AS user_id, u.name, u.email, u.phone, u.is_active
        FROM doctors d
        JOIN users u ON u.id = d.user_id
-       WHERE d.id = ?`,
+       WHERE d.id = $1`,
       [req.params.id]
     );
     if (!rows.length) return res.status(404).json({ message: 'Doctor not found' });
 
     const schedules = await query(
-      'SELECT id, day_of_week, start_time, end_time, slot_minutes FROM doctor_schedules WHERE doctor_id = ? ORDER BY day_of_week, start_time',
+      'SELECT id, day_of_week, start_time, end_time, slot_minutes FROM doctor_schedules WHERE doctor_id = $1 ORDER BY day_of_week, start_time',
       [req.params.id]
     );
     res.json({ doctor: rows[0], schedules });
@@ -39,77 +39,70 @@ export async function getDoctor(req, res, next) {
 }
 
 export async function createDoctor(req, res, next) {
-  const conn = await pool.getConnection();
   try {
     const { name, email, password, phone, specialty, bio, consultation_fee, color } = req.body;
-    await conn.beginTransaction();
     const hash = await bcrypt.hash(password, 10);
-    const [userResult] = await conn.execute(
-      `INSERT INTO users (name, email, password_hash, role, phone) VALUES (?, ?, ?, 'doctor', ?)`,
-      [name, email, hash, phone || null]
-    );
-    const [docResult] = await conn.execute(
-      'INSERT INTO doctors (user_id, specialty, bio, consultation_fee, color) VALUES (?, ?, ?, ?, ?)',
-      [userResult.insertId, specialty, bio || null, consultation_fee || 0, color || '#0d9488']
-    );
-    await conn.commit();
-    res.status(201).json({ id: docResult.insertId, message: 'Doctor created' });
+
+    const result = await transaction(async (q) => {
+      const userRows = await q(
+        `INSERT INTO users (name, email, password_hash, role, phone) VALUES ($1, $2, $3, 'doctor', $4) RETURNING id`,
+        [name, email, hash, phone || null]
+      );
+      const docRows = await q(
+        'INSERT INTO doctors (user_id, specialty, bio, consultation_fee, color) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+        [userRows[0].id, specialty, bio || null, consultation_fee || 0, color || '#0d9488']
+      );
+      return docRows[0].id;
+    });
+
+    res.status(201).json({ id: result, message: 'Doctor created' });
   } catch (err) {
-    await conn.rollback();
-    if (err.code === 'ER_DUP_ENTRY') {
+    if (err.code === '23505') {
       return res.status(409).json({ message: 'Email already in use' });
     }
     next(err);
-  } finally {
-    conn.release();
   }
 }
 
 export async function updateDoctor(req, res, next) {
-  const conn = await pool.getConnection();
   try {
     const { name, phone, specialty, bio, consultation_fee, color, is_active } = req.body;
-    const rows = await query('SELECT user_id FROM doctors WHERE id = ?', [req.params.id]);
+    const rows = await query('SELECT user_id FROM doctors WHERE id = $1', [req.params.id]);
     if (!rows.length) return res.status(404).json({ message: 'Doctor not found' });
 
-    await conn.beginTransaction();
-    await conn.execute(
-      'UPDATE users SET name = ?, phone = ?, is_active = ? WHERE id = ?',
-      [name, phone || null, is_active ?? 1, rows[0].user_id]
-    );
-    await conn.execute(
-      'UPDATE doctors SET specialty = ?, bio = ?, consultation_fee = ?, color = ? WHERE id = ?',
-      [specialty, bio || null, consultation_fee || 0, color || '#0d9488', req.params.id]
-    );
-    await conn.commit();
+    await transaction(async (q) => {
+      await q(
+        'UPDATE users SET name = $1, phone = $2, is_active = $3 WHERE id = $4',
+        [name, phone || null, is_active ?? true, rows[0].user_id]
+      );
+      await q(
+        'UPDATE doctors SET specialty = $1, bio = $2, consultation_fee = $3, color = $4 WHERE id = $5',
+        [specialty, bio || null, consultation_fee || 0, color || '#0d9488', req.params.id]
+      );
+    });
+
     res.json({ message: 'Doctor updated' });
   } catch (err) {
-    await conn.rollback();
     next(err);
-  } finally {
-    conn.release();
   }
 }
 
-/** Replace a doctor's full weekly schedule in one call. */
 export async function updateSchedule(req, res, next) {
-  const conn = await pool.getConnection();
   try {
-    const { schedules } = req.body; // [{ day_of_week, start_time, end_time, slot_minutes }]
-    await conn.beginTransaction();
-    await conn.execute('DELETE FROM doctor_schedules WHERE doctor_id = ?', [req.params.id]);
-    for (const s of schedules) {
-      await conn.execute(
-        'INSERT INTO doctor_schedules (doctor_id, day_of_week, start_time, end_time, slot_minutes) VALUES (?, ?, ?, ?, ?)',
-        [req.params.id, s.day_of_week, s.start_time, s.end_time, s.slot_minutes || 30]
-      );
-    }
-    await conn.commit();
+    const { schedules } = req.body;
+
+    await transaction(async (q) => {
+      await q('DELETE FROM doctor_schedules WHERE doctor_id = $1', [req.params.id]);
+      for (const s of schedules) {
+        await q(
+          'INSERT INTO doctor_schedules (doctor_id, day_of_week, start_time, end_time, slot_minutes) VALUES ($1, $2, $3, $4, $5)',
+          [req.params.id, s.day_of_week, s.start_time, s.end_time, s.slot_minutes || 30]
+        );
+      }
+    });
+
     res.json({ message: 'Schedule updated' });
   } catch (err) {
-    await conn.rollback();
     next(err);
-  } finally {
-    conn.release();
   }
 }
