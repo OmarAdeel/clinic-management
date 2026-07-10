@@ -2,16 +2,38 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+// Use ES6 getters to dynamically resolve environment variables from process.env on demand.
+// This is critical for Cloudflare Workers, where process.env is populated dynamically right before the request handler runs.
 export const env = {
-  port: Number(process.env.PORT || 5000),
-  clientOrigin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
-  db: {
-    host: process.env.DB_HOST || 'localhost',
-    port: Number(process.env.DB_PORT || 3306),
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'clinic_db',
+  get port() {
+    return Number(process.env.PORT || 5000);
   },
-  jwtSecret: process.env.JWT_SECRET || 'dev_secret_change_me',
-  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '12h',
+  get clientOrigin() {
+    return process.env.CLIENT_ORIGIN || 'http://localhost:5173';
+  },
+  get db() {
+    return {
+      get host() {
+        return process.env.DB_HOST || 'localhost';
+      },
+      get port() {
+        return Number(process.env.DB_PORT || 5432);
+      },
+      get user() {
+        return process.env.DB_USER || 'root';
+      },
+      get password() {
+        return process.env.DB_PASSWORD || '';
+      },
+      get database() {
+        return process.env.DB_NAME || 'clinic_db';
+      }
+    };
+  },
+  get jwtSecret() {
+    return process.env.JWT_SECRET || 'dev_secret_change_me';
+  },
+  get jwtExpiresIn() {
+    return process.env.JWT_EXPIRES_IN || '12h';
+  }
 };
