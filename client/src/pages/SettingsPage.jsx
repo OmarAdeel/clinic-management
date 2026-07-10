@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import api from '../lib/api';
 import { Page, PageHeader } from '../components/ui/Page';
 import { Card } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
+import Button from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Field } from '../components/ui/Field';
 import { useAuth } from '../context/AuthContext';
