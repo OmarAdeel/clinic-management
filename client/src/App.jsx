@@ -12,6 +12,7 @@ import VisitsPage from './pages/VisitsPage'
 import BillingPage from './pages/BillingPage'
 import ReportsPage from './pages/ReportsPage'
 import PortalPage from './pages/PortalPage'
+import SettingsPage from './pages/SettingsPage'
 
 function Protected({ roles, children }) {
   const { user } = useAuth()
@@ -110,6 +111,14 @@ export default function App() {
             element={
               <Protected roles={['admin']}>
                 <ReportsPage />
+              </Protected>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <Protected roles={['admin']}>
+                <SettingsPage />
               </Protected>
             }
           />

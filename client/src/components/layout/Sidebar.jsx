@@ -12,6 +12,7 @@ import {
   HeartPulse,
   LogOut,
   X,
+  Settings,
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
@@ -23,6 +24,7 @@ const NAV_ITEMS = [
   { to: '/visits', icon: ClipboardList, key: 'nav.visits', roles: ['admin', 'doctor'] },
   { to: '/billing', icon: Receipt, key: 'nav.billing', roles: ['admin', 'receptionist'] },
   { to: '/reports', icon: BarChart3, key: 'nav.reports', roles: ['admin'] },
+  { to: '/settings', icon: Settings, key: 'nav.settings', roles: ['admin'] },
   { to: '/portal', icon: HeartPulse, key: 'nav.portal', roles: ['patient'] },
 ]
 

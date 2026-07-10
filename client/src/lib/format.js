@@ -23,9 +23,10 @@ export function formatTime(value) {
 }
 
 export function formatMoney(value) {
+  const currency = localStorage.getItem('cms_currency') || 'USD';
   return new Intl.NumberFormat(locale(), {
     style: 'currency',
-    currency: 'USD',
+    currency: currency,
     maximumFractionDigits: 2,
   }).format(Number(value) || 0)
 }

@@ -12,6 +12,7 @@ import visitsRoutes from './routes/visits.routes.js';
 import billingRoutes from './routes/billing.routes.js';
 import reportsRoutes from './routes/reports.routes.js';
 import portalRoutes from './routes/portal.routes.js';
+import usersRoutes from './routes/users.routes.js';
 
 const app = express();
 
@@ -28,6 +29,7 @@ app.use('/api/visits', visitsRoutes);
 app.use('/api/invoices', billingRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/portal', portalRoutes);
+app.use('/api/users', usersRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

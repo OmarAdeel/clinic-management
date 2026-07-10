@@ -61,7 +61,8 @@
     "myAppointments": "My Appointments",
     "myPrescriptions": "My Prescriptions",
     "myInvoices": "My Invoices",
-    "bookAppointment": "Book Appointment"
+    "bookAppointment": "Book Appointment",
+    "settings": "Settings"
   },
   "roles": {
     "admin": "Administrator",
@@ -248,5 +249,25 @@
   "theme": {
     "light": "Switch to light mode",
     "dark": "Switch to dark mode"
+  },
+  "settings": {
+    "title": "Settings",
+    "currency": "Default Currency",
+    "currencyDesc": "Select the default currency symbol used for invoicing and financial reporting.",
+    "userManagement": "User Management",
+    "userManagementDesc": "Add, edit, and delete system user accounts and roles.",
+    "addUser": "Add User",
+    "editUser": "Edit User",
+    "deleteConfirm": "Are you sure you want to delete this user?",
+    "selfDeleteError": "You cannot delete your own account.",
+    "saveSuccess": "Settings saved successfully",
+    "fields": {
+      "name": "Name",
+      "email": "Email",
+      "phone": "Phone",
+      "password": "Password",
+      "role": "Role",
+      "isActive": "Active Status"
+    }
   }
 }
