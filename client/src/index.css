@@ -54,6 +54,13 @@
   --color-border: var(--border);
   --color-ring: var(--ring);
   --radius-lg: var(--radius);
+  
+  /* Sidebar design tokens */
+  --color-sidebar: var(--card);
+  --color-sidebar-foreground: var(--foreground);
+  --color-sidebar-muted: var(--muted-foreground);
+  --color-sidebar-hover: var(--muted);
+  --color-sidebar-border: var(--border);
 }
 
 html {
