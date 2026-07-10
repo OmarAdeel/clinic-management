@@ -11,6 +11,9 @@ export const pool = mysql.createPool({
   connectionLimit: 10,
   charset: 'utf8mb4_unicode_ci',
   dateStrings: true, // return DATE/TIME as strings, avoids timezone shifts
+  // Railway proxy requires SSL; rejectUnauthorized: false because Railway uses
+  // a self-signed cert on the proxy endpoint.
+  ssl: { rejectUnauthorized: false },
 });
 
 /** Run a parameterized query and return rows. */

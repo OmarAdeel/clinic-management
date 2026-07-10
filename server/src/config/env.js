@@ -12,6 +12,10 @@ export const env = {
     password: process.env.DB_PASSWORD || '',
     database: process.env.DB_NAME || 'clinic_db',
   },
-  jwtSecret: process.env.JWT_SECRET || 'dev_secret_change_me',
+  jwtSecret: (() => {
+    const s = process.env.JWT_SECRET;
+    if (!s) throw new Error('JWT_SECRET is not set. Add it to server/.env');
+    return s;
+  })(),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '12h',
 };
