@@ -149,11 +149,7 @@ export const pool = {
 
   async query(sqlStr, params = []) {
     if (isServerless) {
-      const client = createClient({ max: 1 });postgres({
-        ...getDbConfig(),
-        max: 1,
-        connect_timeout: 2,
-      });
+      const client = createClient({ max: 1 });
       try {
         const [rows] = await executePgQuery(client, sqlStr, params);
         return rows;
