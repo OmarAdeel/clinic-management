@@ -6,8 +6,11 @@ export function notFound(req, res) {
 export function errorHandler(err, req, res, next) {
   console.error(err);
   const status = err.status || 500;
+  // Surface the underlying message for 500s too — on Workers the browser network
+  // tab is often the only way to see *why* a request failed, so a generic
+  // 'Internal server error' makes DB/auth misconfiguration impossible to debug.
   res.status(status).json({
-    message: status === 500 ? 'Internal server error' : err.message,
+    message: status === 500 ? `Internal server error: ${err.message}` : err.message,
   });
 }
 

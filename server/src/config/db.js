@@ -3,22 +3,35 @@ import { env } from './env.js';
 
 const isServerless = typeof globalThis.caches !== 'undefined' || process.env.NODE_ENV === 'production';
 
-// Connection details for PostgreSQL
-const dbConfig = {
-  host: env.db.host,
-  port: env.db.port,
-  user: env.db.user,
-  password: env.db.password,
-  database: env.db.database,
-  ssl: false, // Disabled for direct TCP connection compatibility in Workers
-};
+/**
+ * Resolve connection config lazily on each use, so env bindings (populated by
+ * `nodejs_compat_populate_process_env` / Wrangler secrets) are read at query
+ * time rather than module-import time.
+ *
+ * Supabase's Postgres pooler requires TLS, so we enable `ssl: 'require'` in
+ * production. Local dev (non-serverless) can connect without SSL.
+ */
+function getDbConfig() {
+  const password = env.db.password;
+  if (!password && isServerless) {
+    console.error('[db] DB_PASSWORD is not set — connection will fail. Run `wrangler secret put DB_PASSWORD`.');
+  }
+  return {
+    host: env.db.host,
+    port: env.db.port,
+    user: env.db.user,
+    password,
+    database: env.db.database,
+    ssl: isServerless ? 'require' : false,
+  };
+}
 
-// Cache the postgres instance for general queries
+// Cache the postgres instance for general queries (non-serverless only)
 let sqlInstance = null;
 function getSql() {
   if (!sqlInstance) {
     sqlInstance = postgres({
-      ...dbConfig,
+      ...getDbConfig(),
       max: isServerless ? 1 : 10,
       idle_timeout: isServerless ? 1 : 30,
       connect_timeout: 5,
@@ -113,7 +126,7 @@ export const pool = {
   async getConnection() {
     // Create a dedicated single-use connection for the transaction lifecycle
     const conn = postgres({
-      ...dbConfig,
+      ...getDbConfig(),
       max: 1,
     });
     return new WrappedConnection(conn);
@@ -122,7 +135,7 @@ export const pool = {
   async query(sqlStr, params = []) {
     if (isServerless) {
       const client = postgres({
-        ...dbConfig,
+        ...getDbConfig(),
         max: 1,
         connect_timeout: 5,
       });
