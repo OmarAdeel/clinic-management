@@ -31,9 +31,128 @@ function getDatabaseUrl() {
   return `postgresql://${encodedUser}:${encodedPassword}@${host}:${port}/${database}`;
 }
 
+/**
+ * Split a SQL script into individual statements, respecting:
+ *   - dollar-quoted strings ($tag$ ... $tag$ or $$ ... $$)
+ *   - single-quoted string literals ('...' with '' escapes)
+ *   - line comments (-- ... \n)
+ *   - block comments (/* ... *​/)
+ * Semicolons inside any of the above are not treated as statement terminators.
+ */
+function splitSqlStatements(sql) {
+  const statements = [];
+  let buf = '';
+  let i = 0;
+  let dollarTag = null; // non-null => currently inside $tag$ ... $tag$
+  let inSingle = false;
+  let inLineComment = false;
+  let inBlockComment = false;
+
+  while (i < sql.length) {
+    const ch = sql[i];
+    const rest = sql.slice(i);
+
+    if (dollarTag !== null) {
+      const close = `$${dollarTag}$`;
+      if (rest.startsWith(close)) {
+        buf += close;
+        i += close.length;
+        dollarTag = null;
+      } else {
+        buf += ch;
+        i++;
+      }
+      continue;
+    }
+
+    if (inSingle) {
+      buf += ch;
+      if (ch === "'") {
+        if (sql[i + 1] === "'") {
+          // escaped quote ''
+          buf += "'";
+          i += 2;
+          continue;
+        }
+        inSingle = false;
+      }
+      i++;
+      continue;
+    }
+
+    if (inLineComment) {
+      if (ch === '\n') {
+        inLineComment = false;
+        buf += ch;
+      }
+      i++;
+      continue;
+    }
+
+    if (inBlockComment) {
+      if (rest.startsWith('*/')) {
+        inBlockComment = false;
+        buf += '*/';
+        i += 2;
+      } else {
+        buf += ch;
+        i++;
+      }
+      continue;
+    }
+
+    // Not inside any special context: detect starts.
+    const dollarMatch = rest.match(/^\$(\w*)\$/);
+    if (dollarMatch) {
+      dollarTag = dollarMatch[1];
+      buf += dollarMatch[0];
+      i += dollarMatch[0].length;
+      continue;
+    }
+    if (ch === "'") {
+      inSingle = true;
+      buf += ch;
+      i++;
+      continue;
+    }
+    if (rest.startsWith('--')) {
+      inLineComment = true;
+      buf += '--';
+      i += 2;
+      continue;
+    }
+    if (rest.startsWith('/*')) {
+      inBlockComment = true;
+      buf += '/*';
+      i += 2;
+      continue;
+    }
+    if (ch === ';') {
+      const stmt = buf.trim();
+      if (stmt) statements.push(stmt);
+      buf = '';
+      i++;
+      continue;
+    }
+
+    buf += ch;
+    i++;
+  }
+
+  const last = buf.trim();
+  if (last) statements.push(last);
+  return statements;
+}
+
+function summarize(stmt) {
+  const flat = stmt.replace(/\s+/g, ' ').trim();
+  return flat.length > 80 ? flat.slice(0, 77) + '...' : flat;
+}
+
 async function main() {
   const databaseUrl = getDatabaseUrl();
   const sqlText = await fs.readFile(migrationsPath, 'utf8');
+  const statements = splitSqlStatements(sqlText);
 
   const sql = postgres(databaseUrl, {
     ssl: 'require',
@@ -44,9 +163,24 @@ async function main() {
   });
 
   try {
-    console.log(`Applying migrations from ${path.relative(process.cwd(), migrationsPath)}...`);
-    await sql.unsafe(sqlText);
-    console.log('Migrations applied successfully.');
+    console.log(`Applying ${statements.length} statement(s) from ${path.relative(process.cwd(), migrationsPath)}...`);
+    let applied = 0;
+    for (const stmt of statements) {
+      try {
+        await sql.unsafe(stmt);
+        applied++;
+        console.log(`  [${applied}/${statements.length}] ${summarize(stmt)}`);
+      } catch (err) {
+        // The migration file is written idempotently (DO $$ ... EXCEPTION ...),
+        // so a non-trivial error here is unexpected — surface it and stop.
+        console.error(`\nFailed on statement:\n  ${summarize(stmt)}\n`);
+        console.error(`Error: ${err.message}`);
+        if (err.code) console.error(`Code: ${err.code}`);
+        process.exitCode = 1;
+        return;
+      }
+    }
+    console.log(`\nMigrations applied successfully (${applied} statement(s)).`);
   } finally {
     await sql.end({ timeout: 5 });
   }
