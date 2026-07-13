@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
+import { Wallet, TrendingUp, FileText, AlertCircle } from 'lucide-react';
 import {
   ResponsiveContainer,
   BarChart,
@@ -18,9 +19,10 @@ import {
 } from 'recharts';
 import api from '../lib/api';
 import { Page, PageHeader } from '../components/ui/Page';
-import { Card } from '../components/ui/Card';
+import { Card, StatCard } from '../components/ui/Card';
 import { Skeleton } from '../components/ui/Skeleton';
-import { formatMoney } from '../lib/format';
+import { Field, Input } from '../components/ui/Field';
+import { formatMoney, todayISO } from '../lib/format';
 
 const STATUS_COLORS = {
   scheduled: 'var(--color-primary)',
@@ -43,6 +45,13 @@ export default function ReportsPage() {
   const [perDay, setPerDay] = useState([]);
   const [statuses, setStatuses] = useState([]);
   const [topDoctors, setTopDoctors] = useState([]);
+  const [productivity, setProductivity] = useState([]);
+  const [noShowTrend, setNoShowTrend] = useState([]);
+
+  const [revFrom, setRevFrom] = useState(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`);
+  const [revTo, setRevTo] = useState(todayISO());
+  const [revenueReport, setRevenueReport] = useState(null);
+  const [revLoading, setRevLoading] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -51,8 +60,10 @@ export default function ReportsPage() {
       api.get('/reports/appointments-per-day', { params: { days: 30 } }),
       api.get('/reports/status-breakdown'),
       api.get('/reports/top-doctors'),
+      api.get('/reports/doctor-productivity'),
+      api.get('/reports/no-show-rate', { params: { months: 6 } }),
     ])
-      .then(([rev, days, st, docs]) => {
+      .then(([rev, days, st, docs, prod, ns]) => {
         if (!active) return;
         const months = Array.from({ length: 12 }, (_, i) => ({
           month: monthLabel(i, i18n.language),
@@ -76,12 +87,32 @@ export default function ReportsPage() {
           }))
         );
         setTopDoctors(docs.data.data.slice(0, 5));
+        setProductivity(prod.data.data.slice(0, 5));
+        setNoShowTrend(
+          ns.data.data.map((d) => ({
+            month: new Date(`${d.month}-01`).toLocaleDateString(i18n.language, { month: 'short', year: '2-digit' }),
+            rate: d.rate,
+          }))
+        );
       })
       .finally(() => active && setLoading(false));
     return () => {
       active = false;
     };
   }, [t, i18n.language]);
+
+  // Fetch the revenue report whenever the date range changes.
+  useEffect(() => {
+    let active = true;
+    setRevLoading(true);
+    api
+      .get('/reports/revenue', { params: { from: revFrom, to: revTo } })
+      .then((res) => active && setRevenueReport(res.data))
+      .finally(() => active && setRevLoading(false));
+    return () => {
+      active = false;
+    };
+  }, [revFrom, revTo]);
 
   if (loading) {
     return (
@@ -99,6 +130,59 @@ export default function ReportsPage() {
   return (
     <Page>
       <PageHeader title={t('reports.title')} />
+
+      {/* Revenue report with date range */}
+      <Card className="mb-6">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-sm font-semibold text-foreground">{t('reports.revenueReport')}</h2>
+          <div className="flex flex-wrap items-end gap-3">
+            <Field label={t('common.from')} htmlFor="rev-from">
+              <Input id="rev-from" type="date" value={revFrom} onChange={(e) => setRevFrom(e.target.value)} className="w-auto" />
+            </Field>
+            <Field label={t('common.to')} htmlFor="rev-to">
+              <Input id="rev-to" type="date" value={revTo} onChange={(e) => setRevTo(e.target.value)} className="w-auto" />
+            </Field>
+          </div>
+        </div>
+
+        {revLoading || !revenueReport ? (
+          <Skeleton className="h-24 rounded-xl" />
+        ) : (
+          <>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <StatCard icon={TrendingUp} label={t('reports.invoiced')} value={formatMoney(revenueReport.summary.invoiced)} />
+              <StatCard icon={Wallet} label={t('reports.collected')} value={formatMoney(revenueReport.summary.collected)} accent="bg-success/10 text-success" />
+              <StatCard icon={AlertCircle} label={t('reports.outstanding')} value={formatMoney(revenueReport.summary.outstanding)} accent="bg-warning/10 text-warning" />
+              <StatCard icon={FileText} label={t('reports.invoicesCount')} value={revenueReport.summary.invoice_count} accent="bg-accent/10 text-accent" />
+            </div>
+
+            {revenueReport.by_doctor.length > 0 && (
+              <div className="mt-5">
+                <p className="mb-2 text-sm font-medium text-foreground">{t('reports.revenueByDoctor')}</p>
+                <ul className="space-y-2">
+                  {revenueReport.by_doctor.map((d) => (
+                    <li key={d.id} className="flex items-center gap-3 rounded-lg border border-border bg-card p-3">
+                      <span
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-primary-foreground"
+                        style={{ backgroundColor: d.color || 'var(--color-primary)' }}
+                        aria-hidden="true"
+                      >
+                        {d.name?.charAt(0)}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-foreground">{d.name}</p>
+                        <p className="truncate text-xs text-muted-foreground">{d.specialty}</p>
+                      </div>
+                      <span className="text-end text-sm font-semibold text-foreground">{formatMoney(d.collected)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </>
+        )}
+      </Card>
+
       <div className="grid gap-4 md:grid-cols-2">
         <ChartCard title={t('reports.revenuePerMonth')} delay={0}>
           <ResponsiveContainer width="100%" height={260}>
@@ -173,6 +257,56 @@ export default function ReportsPage() {
                   <p className="text-xs text-muted-foreground">
                     {d.completed_appointments} {t('reports.completedAppointments').toLowerCase()}
                   </p>
+                </div>
+              </motion.li>
+            ))}
+          </ul>
+        </ChartCard>
+
+        <ChartCard title={t('reports.noShowRateOverTime')} delay={0.2}>
+          <ResponsiveContainer width="100%" height={260}>
+            <LineChart data={noShowTrend}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+              <XAxis dataKey="month" tick={{ fontSize: 11 }} reversed={isRTL} />
+              <YAxis tick={{ fontSize: 12 }} orientation={isRTL ? 'right' : 'left'} unit="\u2009%" />
+              <Tooltip formatter={(v) => `${v}%`} />
+              <Line
+                type="monotone"
+                dataKey="rate"
+                name={t('reports.noShowRate')}
+                stroke="#c27803"
+                strokeWidth={2}
+                dot={{ r: 3 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </ChartCard>
+
+        <ChartCard title={t('reports.doctorProductivity')} delay={0.25}>
+          <ul className="flex flex-col gap-3">
+            {productivity.map((d, i) => (
+              <motion.li
+                key={d.id}
+                initial={{ opacity: 0, x: isRTL ? 16 : -16 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.2 + i * 0.06 }}
+                className="flex items-center gap-3 rounded-xl border border-border bg-card p-3"
+              >
+                <span
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-primary-foreground"
+                  style={{ backgroundColor: d.color || 'var(--color-primary)' }}
+                  aria-hidden="true"
+                >
+                  {d.name?.charAt(0)}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-foreground">{d.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">{d.specialty}</p>
+                </div>
+                <div className="text-end text-xs">
+                  <p className="font-semibold text-foreground">{d.total_appointments} {t('reports.totalAppointments')}</p>
+                  <p className="text-muted-foreground">{d.completed} {t('reports.completed')} · {d.no_shows} {t('reports.noShows')}</p>
+                  <p className="text-amber-600">{d.no_show_rate}% {t('reports.noShowRate')}</p>
                 </div>
               </motion.li>
             ))}

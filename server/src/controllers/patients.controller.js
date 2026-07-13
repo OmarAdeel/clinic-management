@@ -1,12 +1,20 @@
 import { query } from '../config/db.js';
 import { getPagination } from '../utils/helpers.js';
+import { auditFromReq } from '../utils/audit.js';
 
 export async function listPatients(req, res, next) {
   try {
     const { page, limit, offset } = getPagination(req);
     const search = (req.query.search || '').trim();
-    const where = search ? 'WHERE full_name LIKE ? OR phone LIKE ? OR email LIKE ?' : '';
-    const params = search ? [`%${search}%`, `%${search}%`, `%${search}%`] : [];
+    const includeDeleted = req.query.include_deleted === 'true';
+    const clauses = [];
+    const params = [];
+    if (search) {
+      clauses.push('(full_name ILIKE ? OR phone ILIKE ? OR email ILIKE ?)');
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    }
+    if (!includeDeleted) clauses.push('deleted_at IS NULL');
+    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
 
     const [countRows, rows] = await Promise.all([
       query(`SELECT COUNT(*) AS total FROM patients ${where}`, params),
@@ -27,7 +35,7 @@ export async function listPatients(req, res, next) {
 
 export async function getPatient(req, res, next) {
   try {
-    const rows = await query('SELECT * FROM patients WHERE id = ?', [req.params.id]);
+    const rows = await query('SELECT * FROM patients WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
     if (!rows.length) return res.status(404).json({ message: 'Patient not found' });
 
     const patient = rows[0];
@@ -73,6 +81,7 @@ export async function createPatient(req, res, next) {
       [full_name, dob || null, gender || null, phone || null, email || null,
        address || null, blood_type || null, allergies || null, medical_notes || null]
     );
+    auditFromReq(req, 'create', 'patient', result.insertId, { name: full_name });
     res.status(201).json({ id: result.insertId, message: 'Patient created' });
   } catch (err) {
     next(err);
@@ -89,6 +98,7 @@ export async function updatePatient(req, res, next) {
        address || null, blood_type || null, allergies || null, medical_notes || null, req.params.id]
     );
     if (!result.affectedRows) return res.status(404).json({ message: 'Patient not found' });
+    auditFromReq(req, 'update', 'patient', req.params.id, { name: full_name });
     res.json({ message: 'Patient updated' });
   } catch (err) {
     next(err);
@@ -97,8 +107,10 @@ export async function updatePatient(req, res, next) {
 
 export async function deletePatient(req, res, next) {
   try {
-    const result = await query('DELETE FROM patients WHERE id = ?', [req.params.id]);
+    // Soft-delete: hide without destroying records (HIPAA-friendly, reversible).
+    const result = await query('UPDATE patients SET deleted_at = CURRENT_TIMESTAMP WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
     if (!result.affectedRows) return res.status(404).json({ message: 'Patient not found' });
+    auditFromReq(req, 'delete', 'patient', req.params.id);
     res.json({ message: 'Patient deleted' });
   } catch (err) {
     next(err);

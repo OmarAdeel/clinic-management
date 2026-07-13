@@ -13,11 +13,18 @@
   --primary-foreground: #ffffff;
   --accent: #0284c7;
   --accent-foreground: #ffffff;
+  --secondary: #eef2f3;
+  --secondary-foreground: #10231f;
+  --success: #16a34a;
+  --success-foreground: #ffffff;
+  --warning: #d97706;
+  --warning-foreground: #ffffff;
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
   --border: #e2e8ea;
   --ring: #0d9488;
   --radius: 0.75rem;
+  --shadow-color: 220deg 25% 30%;
 }
 
 .dark {
@@ -31,10 +38,17 @@
   --primary-foreground: #06211e;
   --accent: #38bdf8;
   --accent-foreground: #06211e;
+  --secondary: #172927;
+  --secondary-foreground: #e6efed;
+  --success: #22c55e;
+  --success-foreground: #052e16;
+  --warning: #f59e0b;
+  --warning-foreground: #2a1607;
   --destructive: #f87171;
   --destructive-foreground: #1d0707;
   --border: #1e3330;
   --ring: #14b8a9;
+  --shadow-color: 190deg 40% 4%;
 }
 
 @theme inline {
@@ -51,6 +65,12 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
   --color-border: var(--border);
   --color-ring: var(--ring);
   --radius-lg: var(--radius);
@@ -76,6 +96,29 @@ body {
   background-color: var(--background);
   color: var(--foreground);
   -webkit-font-smoothing: antialiased;
+}
+
+/* Custom scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+  border-radius: 9999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--muted-foreground);
+}
+
+/* Smooth focus ring for keyboard users */
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 
 /* Skeleton shimmer */

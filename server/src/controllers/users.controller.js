@@ -1,12 +1,19 @@
 import bcrypt from 'bcryptjs';
 import { query, pool } from '../config/db.js';
+import { auditFromReq } from '../utils/audit.js';
 
 /** List all users. */
 export async function listUsers(req, res, next) {
   try {
     const search = (req.query.search || '').trim();
-    const where = search ? 'WHERE name ILIKE ? OR email ILIKE ? OR phone ILIKE ?' : '';
-    const params = search ? [`%${search}%`, `%${search}%`, `%${search}%`] : [];
+    const clauses = [];
+    const params = [];
+    if (search) {
+      clauses.push('(name ILIKE ? OR email ILIKE ? OR phone ILIKE ?)');
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    }
+    clauses.push('deleted_at IS NULL');
+    const where = `WHERE ${clauses.join(' AND ')}`;
 
     const rows = await query(
       `SELECT id, name, email, role, phone, is_active, avatar, created_at
@@ -59,6 +66,7 @@ export async function createUser(req, res, next) {
     }
 
     await conn.commit();
+    auditFromReq(req, 'create', 'user', userId, { name, role });
     res.status(201).json({ id: userId, message: 'User created successfully' });
   } catch (err) {
     await conn.rollback();
@@ -76,7 +84,7 @@ export async function updateUser(req, res, next) {
     const userId = req.params.id;
 
     // Check if user exists
-    const users = await query('SELECT id, role FROM users WHERE id = ?', [userId]);
+    const users = await query('SELECT id, role FROM users WHERE id = ? AND deleted_at IS NULL', [userId]);
     if (!users.length) {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -125,6 +133,7 @@ export async function updateUser(req, res, next) {
     }
 
     await conn.commit();
+    auditFromReq(req, 'update', 'user', userId, { role });
     res.json({ message: 'User updated successfully' });
   } catch (err) {
     await conn.rollback();
@@ -149,7 +158,8 @@ export async function deleteUser(req, res, next) {
       return res.status(400).json({ message: 'You cannot delete your own account' });
     }
 
-    await query('DELETE FROM users WHERE id = ?', [userId]);
+    await query('UPDATE users SET deleted_at = CURRENT_TIMESTAMP, is_active = FALSE WHERE id = ?', [userId]);
+    auditFromReq(req, 'delete', 'user', userId);
     res.json({ message: 'User deleted successfully' });
   } catch (err) {
     next(err);

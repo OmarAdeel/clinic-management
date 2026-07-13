@@ -14,7 +14,7 @@ const EMPTY_RX = { medication: '', dosage: '', frequency: '', duration: '', inst
  */
 export default function VisitFormModal({ appointment, onClose, onSaved }) {
   const { t } = useTranslation()
-  const [vitals, setVitals] = useState({ bp: '', temp: '', weight: '', height: '' })
+  const [vitals, setVitals] = useState({ bp: '', temp: '', weight: '', height: '', hr: '', spo2: '', rr: '' })
   const [symptoms, setSymptoms] = useState('')
   const [diagnosis, setDiagnosis] = useState('')
   const [notes, setNotes] = useState('')
@@ -25,6 +25,11 @@ export default function VisitFormModal({ appointment, onClose, onSaved }) {
   const setVital = (k) => (e) => setVitals((v) => ({ ...v, [k]: e.target.value }))
   const setRx = (i, k) => (e) =>
     setRxLines((lines) => lines.map((l, idx) => (idx === i ? { ...l, [k]: e.target.value } : l)))
+
+  // Auto-calculated BMI from weight (kg) and height (cm)
+  const w = parseFloat(vitals.weight)
+  const h = parseFloat(vitals.height)
+  const bmi = w > 0 && h > 0 ? (w / Math.pow(h / 100, 2)).toFixed(1) : ''
 
   const submit = async (e) => {
     e.preventDefault()
@@ -60,14 +65,26 @@ export default function VisitFormModal({ appointment, onClose, onSaved }) {
             <Field label={t('visits.bp')} htmlFor="v-bp">
               <Input id="v-bp" dir="ltr" placeholder="120/80" value={vitals.bp} onChange={setVital('bp')} />
             </Field>
+            <Field label={t('visits.hr')} htmlFor="v-hr">
+              <Input id="v-hr" dir="ltr" type="number" step="1" placeholder="72" value={vitals.hr} onChange={setVital('hr')} />
+            </Field>
             <Field label={t('visits.temp')} htmlFor="v-temp">
-              <Input id="v-temp" dir="ltr" type="number" step="0.1" value={vitals.temp} onChange={setVital('temp')} />
+              <Input id="v-temp" dir="ltr" type="number" step="0.1" placeholder="37.0" value={vitals.temp} onChange={setVital('temp')} />
+            </Field>
+            <Field label={t('visits.spo2')} htmlFor="v-spo2">
+              <Input id="v-spo2" dir="ltr" type="number" step="1" min="0" max="100" placeholder="98" value={vitals.spo2} onChange={setVital('spo2')} />
             </Field>
             <Field label={t('visits.weight')} htmlFor="v-weight">
-              <Input id="v-weight" dir="ltr" type="number" step="0.1" value={vitals.weight} onChange={setVital('weight')} />
+              <Input id="v-weight" dir="ltr" type="number" step="0.1" placeholder="70" value={vitals.weight} onChange={setVital('weight')} />
             </Field>
             <Field label={t('visits.height')} htmlFor="v-height">
-              <Input id="v-height" dir="ltr" type="number" step="0.1" value={vitals.height} onChange={setVital('height')} />
+              <Input id="v-height" dir="ltr" type="number" step="0.1" placeholder="175" value={vitals.height} onChange={setVital('height')} />
+            </Field>
+            <Field label={t('visits.rr')} htmlFor="v-rr">
+              <Input id="v-rr" dir="ltr" type="number" step="1" placeholder="16" value={vitals.rr} onChange={setVital('rr')} />
+            </Field>
+            <Field label={t('visits.bmi')} htmlFor="v-bmi">
+              <Input id="v-bmi" dir="ltr" readOnly value={bmi} placeholder="—" className="bg-muted/40" />
             </Field>
           </div>
         </fieldset>

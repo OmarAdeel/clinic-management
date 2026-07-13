@@ -1,5 +1,7 @@
 import { query } from '../config/db.js';
 import { getPagination, timeToMinutes, minutesToTime } from '../utils/helpers.js';
+import { isOnLeave } from './leave.controller.js';
+import { auditFromReq } from '../utils/audit.js';
 
 const BASE_SELECT = `
   SELECT a.id, a.date, a.start_time, a.end_time, a.status, a.reason,
@@ -26,6 +28,7 @@ export async function listAppointments(req, res, next) {
       clauses.push('du.id = ?');
       params.push(req.user.id);
     }
+    clauses.push('a.deleted_at IS NULL');
 
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
     const [countRows, rows] = await Promise.all([
@@ -48,7 +51,7 @@ export async function listAppointments(req, res, next) {
 
 export async function getAppointment(req, res, next) {
   try {
-    const rows = await query(`${BASE_SELECT} WHERE a.id = ?`, [req.params.id]);
+    const rows = await query(`${BASE_SELECT} WHERE a.id = ? AND a.deleted_at IS NULL`, [req.params.id]);
     if (!rows.length) return res.status(404).json({ message: 'Appointment not found' });
 
     const appointment = rows[0];
@@ -77,6 +80,11 @@ export async function availableSlots(req, res, next) {
       return res.status(400).json({ message: 'doctor_id and date are required' });
     }
     const dayOfWeek = new Date(`${date}T00:00:00`).getDay();
+
+    // Doctor on approved leave that day? Show no slots.
+    if (await isOnLeave(doctor_id, date)) {
+      return res.json({ slots: [], onLeave: true });
+    }
 
     const [schedules, booked] = await Promise.all([
       query(
@@ -114,6 +122,11 @@ export async function createAppointment(req, res, next) {
   try {
     const { patient_id, doctor_id, date, start_time, end_time, reason } = req.body;
 
+    // Doctor leave check — blocks booking during approved time off
+    if (await isOnLeave(doctor_id, date)) {
+      return res.status(409).json({ message: 'Doctor is on leave on this date. Please pick another day.' });
+    }
+
     // Conflict check: overlapping non-cancelled appointment for the same doctor
     const conflicts = await query(
       `SELECT id FROM appointments
@@ -130,6 +143,7 @@ export async function createAppointment(req, res, next) {
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [patient_id, doctor_id, date, start_time, end_time, reason || null, req.user.id]
     );
+    auditFromReq(req, 'create', 'appointment', result.insertId, { patient_id, doctor_id, date });
     res.status(201).json({ id: result.insertId, message: 'Appointment booked' });
   } catch (err) {
     next(err);
@@ -144,6 +158,7 @@ export async function updateStatus(req, res, next) {
       req.params.id,
     ]);
     if (!result.affectedRows) return res.status(404).json({ message: 'Appointment not found' });
+    auditFromReq(req, 'update_status', 'appointment', req.params.id, { status });
     res.json({ message: 'Status updated' });
   } catch (err) {
     next(err);
@@ -152,8 +167,9 @@ export async function updateStatus(req, res, next) {
 
 export async function deleteAppointment(req, res, next) {
   try {
-    const result = await query('DELETE FROM appointments WHERE id = ?', [req.params.id]);
+    const result = await query('UPDATE appointments SET deleted_at = CURRENT_TIMESTAMP WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
     if (!result.affectedRows) return res.status(404).json({ message: 'Appointment not found' });
+    auditFromReq(req, 'delete', 'appointment', req.params.id);
     res.json({ message: 'Appointment deleted' });
   } catch (err) {
     next(err);

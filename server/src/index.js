@@ -13,6 +13,13 @@ import billingRoutes from './routes/billing.routes.js';
 import reportsRoutes from './routes/reports.routes.js';
 import portalRoutes from './routes/portal.routes.js';
 import usersRoutes from './routes/users.routes.js';
+import servicesRoutes from './routes/services.routes.js';
+import leaveRoutes from './routes/leave.routes.js';
+import labRoutes from './routes/lab.routes.js';
+import insuranceRoutes from './routes/insurance.routes.js';
+import clinicRoutes from './routes/clinic.routes.js';
+import remindersRoutes from './routes/reminders.routes.js';
+import auditRoutes from './routes/audit.routes.js';
 
 const app = express();
 
@@ -30,6 +37,13 @@ app.use('/api/invoices', billingRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/portal', portalRoutes);
 app.use('/api/users', usersRoutes);
+app.use('/api/services', servicesRoutes);
+app.use('/api/leave', leaveRoutes);
+app.use('/api/lab-tests', labRoutes);
+app.use('/api/insurance', insuranceRoutes);
+app.use('/api/clinic', clinicRoutes);
+app.use('/api/reminders', remindersRoutes);
+app.use('/api/audit', auditRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

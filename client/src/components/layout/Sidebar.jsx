@@ -13,6 +13,10 @@ import {
   LogOut,
   X,
   Settings,
+  Briefcase,
+  FlaskConical,
+  ShieldCheck,
+  History,
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
@@ -22,8 +26,12 @@ const NAV_ITEMS = [
   { to: '/appointments', icon: CalendarDays, key: 'nav.appointments', roles: ['admin', 'doctor', 'receptionist'] },
   { to: '/doctors', icon: Stethoscope, key: 'nav.doctors', roles: ['admin', 'receptionist'] },
   { to: '/visits', icon: ClipboardList, key: 'nav.visits', roles: ['admin', 'doctor'] },
+  { to: '/lab-tests', icon: FlaskConical, key: 'nav.labTests', roles: ['admin', 'doctor'] },
   { to: '/billing', icon: Receipt, key: 'nav.billing', roles: ['admin', 'receptionist'] },
+  { to: '/services', icon: Briefcase, key: 'nav.services', roles: ['admin', 'receptionist'] },
+  { to: '/insurance', icon: ShieldCheck, key: 'nav.insurance', roles: ['admin', 'receptionist'] },
   { to: '/reports', icon: BarChart3, key: 'nav.reports', roles: ['admin'] },
+  { to: '/audit-log', icon: History, key: 'nav.auditLog', roles: ['admin'] },
   { to: '/settings', icon: Settings, key: 'nav.settings', roles: ['admin'] },
   { to: '/portal', icon: HeartPulse, key: 'nav.portal', roles: ['patient'] },
 ]

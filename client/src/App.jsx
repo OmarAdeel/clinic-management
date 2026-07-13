@@ -13,6 +13,10 @@ import BillingPage from './pages/BillingPage'
 import ReportsPage from './pages/ReportsPage'
 import PortalPage from './pages/PortalPage'
 import SettingsPage from './pages/SettingsPage'
+import ServicesPage from './pages/ServicesPage'
+import LabTestsPage from './pages/LabTestsPage'
+import InsurancePage from './pages/InsurancePage'
+import AuditLogPage from './pages/AuditLogPage'
 
 function Protected({ roles, children }) {
   const { user } = useAuth()
@@ -119,6 +123,38 @@ export default function App() {
             element={
               <Protected roles={['admin']}>
                 <SettingsPage />
+              </Protected>
+            }
+          />
+          <Route
+            path="/services"
+            element={
+              <Protected roles={['admin', 'receptionist']}>
+                <ServicesPage />
+              </Protected>
+            }
+          />
+          <Route
+            path="/lab-tests"
+            element={
+              <Protected roles={['admin', 'doctor']}>
+                <LabTestsPage />
+              </Protected>
+            }
+          />
+          <Route
+            path="/insurance"
+            element={
+              <Protected roles={['admin', 'receptionist']}>
+                <InsurancePage />
+              </Protected>
+            }
+          />
+          <Route
+            path="/audit-log"
+            element={
+              <Protected roles={['admin']}>
+                <AuditLogPage />
               </Protected>
             }
           />

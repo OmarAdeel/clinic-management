@@ -8,6 +8,11 @@ compatibility_flags = [
   "enable_nodejs_http_server_modules"
 ]
 
+# Hourly cron trigger for appointment reminders. Calls worker.js#scheduled().
+# Adjust cadence here: 'every hour' | 'every day at 09:00' etc.
+[[triggers.crons]]
+cron = "0 * * * *"
+
 [vars]
 NODE_ENV = "production"
 DB_HOST = "aws-0-eu-west-1.pooler.supabase.com"
@@ -16,3 +21,7 @@ DB_USER = "postgres.fvqrhxzgkvcvybpoylzr"
 DB_NAME = "postgres"
 JWT_EXPIRES_IN = "12h"
 CLIENT_ORIGIN = "https://clinic-management-ana.pages.dev"
+
+# Secrets (do NOT put here — use `wrangler secret put <NAME>`):
+#   DB_PASSWORD, JWT_SECRET, RESEND_API_KEY, NOTIFY_FROM_EMAIL,
+#   TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER

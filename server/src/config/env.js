@@ -35,5 +35,21 @@ export const env = {
   },
   get jwtExpiresIn() {
     return globalThis.JWT_EXPIRES_IN || process.env.JWT_EXPIRES_IN || '12h';
+  },
+  // --- Notification deliver config (read from Wrangler/Vercel secrets) ---
+  get resendApiKey() {
+    return globalThis.RESEND_API_KEY || process.env.RESEND_API_KEY || '';
+  },
+  get resendFrom() {
+    return globalThis.NOTIFY_FROM_EMAIL || process.env.NOTIFY_FROM_EMAIL || 'Clinic <no-reply@clinic.app>';
+  },
+  get twilioAccountSid() {
+    return globalThis.TWILIO_ACCOUNT_SID || process.env.TWILIO_ACCOUNT_SID || '';
+  },
+  get twilioAuthToken() {
+    return globalThis.TWILIO_AUTH_TOKEN || process.env.TWILIO_AUTH_TOKEN || '';
+  },
+  get twilioFrom() {
+    return globalThis.TWILIO_FROM_NUMBER || process.env.TWILIO_FROM_NUMBER || '';
   }
 };

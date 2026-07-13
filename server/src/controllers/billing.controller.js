@@ -1,5 +1,6 @@
 import { pool, query } from '../config/db.js';
 import { getPagination, nextInvoiceNumber } from '../utils/helpers.js';
+import { auditFromReq } from '../utils/audit.js';
 
 export async function listInvoices(req, res, next) {
   try {
@@ -80,6 +81,7 @@ export async function createInvoice(req, res, next) {
       );
     }
     await conn.commit();
+    auditFromReq(req, 'create', 'invoice', result.insertId, { invoice_number: invoiceNumber, patient_id, total });
     res.status(201).json({ id: result.insertId, invoice_number: invoiceNumber, message: 'Invoice created' });
   } catch (err) {
     await conn.rollback();
@@ -113,6 +115,7 @@ export async function recordPayment(req, res, next) {
     const status = paid >= Number(invoices[0].total) ? 'paid' : 'partial';
     await conn.execute('UPDATE invoices SET status = ? WHERE id = ?', [status, req.params.id]);
     await conn.commit();
+    auditFromReq(req, 'record_payment', 'invoice', req.params.id, { amount, method });
     res.json({ message: 'Payment recorded', status, paid });
   } catch (err) {
     await conn.rollback();
@@ -126,6 +129,7 @@ export async function cancelInvoice(req, res, next) {
   try {
     const result = await query("UPDATE invoices SET status = 'cancelled' WHERE id = ?", [req.params.id]);
     if (!result.affectedRows) return res.status(404).json({ message: 'Invoice not found' });
+    auditFromReq(req, 'cancel', 'invoice', req.params.id);
     res.json({ message: 'Invoice cancelled' });
   } catch (err) {
     next(err);

@@ -53,10 +53,22 @@ export default function PrescriptionPrint({ appointment, visit }) {
               <span dir="ltr" className="font-medium text-foreground">{vitals.bp}</span>
             </span>
           )}
+          {vitals.hr && (
+            <span>
+              <span className="text-muted-foreground">{t('visits.hr')}: </span>
+              <span dir="ltr" className="font-medium text-foreground">{vitals.hr}</span>
+            </span>
+          )}
           {vitals.temp && (
             <span>
               <span className="text-muted-foreground">{t('visits.temp')}: </span>
               <span dir="ltr" className="font-medium text-foreground">{vitals.temp}</span>
+            </span>
+          )}
+          {vitals.spo2 && (
+            <span>
+              <span className="text-muted-foreground">{t('visits.spo2')}: </span>
+              <span dir="ltr" className="font-medium text-foreground">{vitals.spo2}%</span>
             </span>
           )}
           {vitals.weight && (
@@ -71,6 +83,21 @@ export default function PrescriptionPrint({ appointment, visit }) {
               <span dir="ltr" className="font-medium text-foreground">{vitals.height}</span>
             </span>
           )}
+          {vitals.rr && (
+            <span>
+              <span className="text-muted-foreground">{t('visits.rr')}: </span>
+              <span dir="ltr" className="font-medium text-foreground">{vitals.rr}</span>
+            </span>
+          )}
+          {vitals.weight && vitals.height && (() => {
+            const bmi = (parseFloat(vitals.weight) / Math.pow(parseFloat(vitals.height) / 100, 2)).toFixed(1)
+            return (
+              <span>
+                <span className="text-muted-foreground">{t('visits.bmi')}: </span>
+                <span dir="ltr" className="font-medium text-foreground">{bmi}</span>
+              </span>
+            )
+          })()}
         </div>
       )}
 

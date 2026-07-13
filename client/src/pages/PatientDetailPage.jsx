@@ -3,7 +3,8 @@ import useSWR from 'swr'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Pencil, Trash2, ClipboardList, Receipt, Pill } from 'lucide-react'
+import { ArrowLeft, Pencil, Trash2, ClipboardList, Receipt, Pill, Activity } from 'lucide-react'
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
 import api, { fetcher } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import { Page, PageHeader } from '../components/ui/Page'
@@ -14,6 +15,7 @@ import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import PatientForm from '../components/patients/PatientForm'
+import AllergyBanner from '../components/patients/AllergyBanner'
 import { formatDate, formatTime, formatMoney, ageFromDob } from '../lib/format'
 
 function InfoItem({ label, value, dir }) {
@@ -60,6 +62,23 @@ export default function PatientDetailPage() {
   const { patient, visits, invoices } = data
   const age = ageFromDob(patient.dob)
 
+  // Build a vitals trend series (oldest -> newest) for visits that have vitals.
+  const vitalsTrend = (visits || [])
+    .filter((v) => v.vitals)
+    .map((v) => {
+      const vit = typeof v.vitals === 'string' ? JSON.parse(v.vitals) : v.vitals
+      // Systolic BP is the first number of "120/80" for numeric charting.
+      const systolic = vit.bp ? parseInt(String(vit.bp).split('/')[0], 10) : null
+      return {
+        date: formatDate(v.date, { month: 'numeric', day: 'numeric', year: undefined }),
+        bp: Number.isNaN(systolic) ? null : systolic,
+        weight: vit.weight ? parseFloat(vit.weight) : null,
+        hr: vit.hr ? parseInt(vit.hr, 10) : null,
+      }
+    })
+    .filter((d) => d.bp != null || d.weight != null || d.hr != null)
+    .reverse()
+
   return (
     <Page>
       <Link
@@ -91,6 +110,8 @@ export default function PatientDetailPage() {
         }
       />
 
+      <AllergyBanner patient={patient} />
+
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Overview card */}
         <Card>
@@ -117,6 +138,7 @@ export default function PatientDetailPage() {
           <div className="mb-4 flex gap-1 rounded-lg bg-muted p-1" role="tablist">
             {[
               { key: 'visits', label: t('patients.visitsHistory'), icon: ClipboardList },
+              { key: 'vitals', label: t('patients.vitals'), icon: Activity },
               { key: 'invoices', label: t('patients.invoices'), icon: Receipt },
             ].map((tb) => (
               <button
@@ -185,6 +207,35 @@ export default function PatientDetailPage() {
                   </motion.div>
                 ))}
               </div>
+            ))}
+
+          {tab === 'vitals' &&
+            (vitalsTrend.length === 0 ? (
+              <EmptyState icon={Activity} title={t('patients.noVitals')} />
+            ) : (
+              <Card>
+                <h2 className="mb-4 text-base font-medium text-foreground">{t('patients.vitalsTrend')}</h2>
+                <div className="h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={vitalsTrend} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+                      <XAxis dataKey="date" tick={{ fontSize: 12 }} stroke="var(--color-muted-foreground)" />
+                      <YAxis tick={{ fontSize: 12 }} stroke="var(--color-muted-foreground)" />
+                      <Tooltip
+                        contentStyle={{
+                          background: 'var(--color-card)',
+                          border: '1px solid var(--color-border)',
+                          borderRadius: 8,
+                          fontSize: 13,
+                        }}
+                      />
+                      <Line type="monotone" dataKey="bp" name={t('visits.bp')} stroke="#dc2626" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                      <Line type="monotone" dataKey="weight" name={t('visits.weight')} stroke="#0d9488" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                      <Line type="monotone" dataKey="hr" name={t('visits.hr')} stroke="#0284c7" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </Card>
             ))}
 
           {tab === 'invoices' &&
