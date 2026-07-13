@@ -20,9 +20,20 @@ const fetchHandler = typeof httpHandler === 'function'
  *   - scheduled : the Cron Trigger handler that sends appointment reminders
  *
  * Cron schedule is configured in wrangler.toml via [triggers] crons.
+ *
+ * Bindings (e.g. Hyperdrive) arrive on the `workerEnv` argument — they are NOT
+ * on globalThis automatically. We surface the Hyperdrive connection string
+ * here so the Express/Postgres layer (db.js) can connect through Cloudflare's
+ * persistent pool instead of opening a raw TCP socket per query (which blows
+ * past the Workers subrequest limit when talking to external Postgres).
  */
 export default {
-  fetch: fetchHandler,
+  async fetch(request, workerEnv, ctx) {
+    if (workerEnv?.HYPERDRIVE?.connectionString) {
+      globalThis.HYPERDRIVE_CONNECTION_STRING = workerEnv.HYPERDRIVE.connectionString;
+    }
+    return fetchHandler(request, workerEnv, ctx);
+  },
   async scheduled(event, ctx) {
     ctx.waitUntil(
       sendDueReminders().catch((err) => {

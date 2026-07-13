@@ -51,5 +51,12 @@ export const env = {
   },
   get twilioFrom() {
     return globalThis.TWILIO_FROM_NUMBER || process.env.TWILIO_FROM_NUMBER || '';
+  },
+  // --- Cloudflare Hyperdrive (persistent Postgres pool at the edge) ---
+  // Set by worker.js from the `HYPERDRIVE` binding. When present, db.js uses it
+  // instead of opening a raw TCP socket to Supabase (which blows past the
+  // Workers subrequest limit).
+  get hyperdriveConnectionString() {
+    return globalThis.HYPERDRIVE_CONNECTION_STRING || process.env.HYPERDRIVE_CONNECTION_STRING || '';
   }
 };

@@ -12,6 +12,18 @@ const isServerless = typeof globalThis.caches !== 'undefined' || process.env.NOD
  * production. Local dev (non-serverless) can connect without SSL.
  */
 function getDbConfig() {
+  // Prefer Cloudflare Hyperdrive when available: it provides a persistent
+  // Postgres pool at Cloudflare's edge, so the Worker talks to it over one
+  // optimized path instead of opening a raw TCP socket per query (which is
+  // what exhausts the Workers subrequest limit against external Postgres).
+  const connString = env.hyperdriveConnectionString;
+  if (connString) {
+    return {
+      connectionString: connString,
+      ssl: 'require',
+      prepare: false, // disable prepared statements (serverless-friendly)
+    };
+  }
   const password = env.db.password;
   if (!password && isServerless) {
     console.error('[db] DB_PASSWORD is not set — connection will fail. Run `wrangler secret put DB_PASSWORD`.');
@@ -23,6 +35,8 @@ function getDbConfig() {
     password,
     database: env.db.database,
     ssl: isServerless ? 'require' : false,
+    prepare: false, // disable prepared statements (serverless-friendly)
+    connect_timeout: isServerless ? 2 : 10,
   };
 }
 
@@ -128,6 +142,7 @@ export const pool = {
     const conn = postgres({
       ...getDbConfig(),
       max: 1,
+      connect_timeout: 2,
     });
     return new WrappedConnection(conn);
   },
@@ -137,7 +152,7 @@ export const pool = {
       const client = postgres({
         ...getDbConfig(),
         max: 1,
-        connect_timeout: 5,
+        connect_timeout: 2,
       });
       try {
         const [rows] = await executePgQuery(client, sqlStr, params);

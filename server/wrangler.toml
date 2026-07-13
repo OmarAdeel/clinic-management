@@ -25,3 +25,15 @@ CLIENT_ORIGIN = "https://clinic-management-ana.pages.dev"
 # Secrets (do NOT put here — use `wrangler secret put <NAME>`):
 #   DB_PASSWORD, JWT_SECRET, RESEND_API_KEY, NOTIFY_FROM_EMAIL,
 #   TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER
+
+# --- Cloudflare Hyperdrive (persistent Postgres pool at the edge) ---
+# Uncomment after creating the Hyperdrive config. Replace <id> with the id
+# printed by the create command.
+#
+# Create the config:
+#   npx wrangler hyperdrive create clinic-db \
+#     --connection-string="postgresql://postgres.fvqrhxzgkvcvybpoylzr:<SUPABASE_PASSWORD>@aws-0-eu-west-1.pooler.supabase.com:5432/postgres"
+#
+# [[hyperdrive]]
+# binding = "HYPERDRIVE"
+# id = "<id printed by the create command>"
