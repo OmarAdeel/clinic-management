@@ -4,51 +4,55 @@ import { env } from './env.js';
 const isServerless = typeof globalThis.caches !== 'undefined' || process.env.NODE_ENV === 'production';
 
 /**
- * Resolve connection config lazily on each use, so env bindings (populated by
- * `nodejs_compat_populate_process_env` / Wrangler secrets) are read at query
- * time rather than module-import time.
+ * Create a postgres (porsager) client, resolving connection settings lazily on
+ * each use so env bindings (populated by `nodejs_compat_populate_process_env` /
+ * Wrangler secrets / the Hyperdrive binding) are read at call time rather than
+ * module-import time.
  *
- * Supabase's Postgres pooler requires TLS, so we enable `ssl: 'require'` in
- * production. Local dev (non-serverless) can connect without SSL.
+ * IMPORTANT: when using Cloudflare Hyperdrive, the connection string MUST be
+ * passed as the FIRST POSITIONAL argument to postgres(url, options). postgres.js
+ * has no `connectionString` option key, so putting it in the options object is
+ * silently ignored and the driver falls back to localhost defaults — which
+ * surfaces as "proxy request failed, cannot connect to the specified address".
+ *
+ * For the Hyperdrive path we deliberately do NOT set `ssl`: Hyperdrive manages
+ * TLS to the origin (Supabase), and the Worker↔Hyperdrive hop is internal.
+ * `fetch_types:false` + `prepare:false` avoid the extra round-trips / named
+ * prepared statements that Hyperdrive does not support.
  */
-function getDbConfig() {
-  // Prefer Cloudflare Hyperdrive when available: it provides a persistent
-  // Postgres pool at Cloudflare's edge, so the Worker talks to it over one
-  // optimized path instead of opening a raw TCP socket per query (which is
-  // what exhausts the Workers subrequest limit against external Postgres).
+function createClient(extraOpts = {}) {
   const connString = env.hyperdriveConnectionString;
   if (connString) {
-    return {
-      connectionString: connString,
-      ssl: 'require',
-      prepare: false, // disable prepared statements (serverless-friendly)
-    };
+    return postgres(connString, {
+      prepare: false,
+      fetch_types: false,
+      ...extraOpts,
+    });
   }
   const password = env.db.password;
   if (!password && isServerless) {
     console.error('[db] DB_PASSWORD is not set — connection will fail. Run `wrangler secret put DB_PASSWORD`.');
   }
-  return {
+  return postgres({
     host: env.db.host,
     port: env.db.port,
     user: env.db.user,
     password,
     database: env.db.database,
     ssl: isServerless ? 'require' : false,
-    prepare: false, // disable prepared statements (serverless-friendly)
+    prepare: false,
     connect_timeout: isServerless ? 2 : 10,
-  };
+    ...extraOpts,
+  });
 }
 
 // Cache the postgres instance for general queries (non-serverless only)
 let sqlInstance = null;
 function getSql() {
   if (!sqlInstance) {
-    sqlInstance = postgres({
-      ...getDbConfig(),
+    sqlInstance = createClient({
       max: isServerless ? 1 : 10,
       idle_timeout: isServerless ? 1 : 30,
-      connect_timeout: 5,
     });
   }
   return sqlInstance;
@@ -81,7 +85,7 @@ async function executePgQuery(conn, sqlStr, params) {
   try {
     const res = await conn.unsafe(pgSql, params);
     const trimmed = sqlStr.trim().toLowerCase();
-    
+
     if (trimmed.startsWith('select')) {
       return [Array.from(res), null];
     } else {
@@ -139,17 +143,13 @@ class WrappedConnection {
 export const pool = {
   async getConnection() {
     // Create a dedicated single-use connection for the transaction lifecycle
-    const conn = postgres({
-      ...getDbConfig(),
-      max: 1,
-      connect_timeout: 2,
-    });
+    const conn = createClient({ max: 1 });
     return new WrappedConnection(conn);
   },
-  
+
   async query(sqlStr, params = []) {
     if (isServerless) {
-      const client = postgres({
+      const client = createClient({ max: 1 });postgres({
         ...getDbConfig(),
         max: 1,
         connect_timeout: 2,
