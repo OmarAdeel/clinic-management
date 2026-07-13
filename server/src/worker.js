@@ -19,7 +19,7 @@ const fetchHandler = typeof httpHandler === 'function'
  *   - fetch  : the Express HTTP API (drivers: REST + worker handler)
  *   - scheduled : the Cron Trigger handler that sends appointment reminders
  *
- * Cron schedule is configured in wrangler.toml via [[triggers.crons]].
+ * Cron schedule is configured in wrangler.toml via [triggers] crons.
  */
 export default {
   fetch: fetchHandler,

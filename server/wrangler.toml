@@ -10,8 +10,8 @@ compatibility_flags = [
 
 # Hourly cron trigger for appointment reminders. Calls worker.js#scheduled().
 # Adjust cadence here: 'every hour' | 'every day at 09:00' etc.
-[[triggers.crons]]
-cron = "0 * * * *"
+[triggers]
+crons = ["0 * * * *"]
 
 [vars]
 NODE_ENV = "production"
